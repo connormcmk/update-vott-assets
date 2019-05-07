@@ -69,8 +69,10 @@ def map_old_vott_path_and_id_to_new(vott_dict, directory_name):
 def main(new_source_directory, target_directory):
     """
     Arguments:
+    
     target_directory -- the path to the directory that contains all the -asset.json files and the 
     .vott file
+    
     new_source_directory -- the path to the directory that contains the images that were
     originally tagged (not yet tested with videos)
     
