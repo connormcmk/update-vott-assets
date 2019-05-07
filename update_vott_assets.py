@@ -172,23 +172,28 @@ Done! Only a couple remaining steps:
     1. Open VoTT
     2. Click Home then click Open Local Project
     3. Navigate to '{target_directory}'
-    4. Scroll to the '{}' file. If it opens, you're done! Otherwise:
-        - You need to add the right security token
+    4. Open the '{vott_file}' file. If it opens without error, you're done! Otherwise:
+        - You get Error loading project file: You need to add the right security token
             1. Click Settings (the gear icon)
             2. Ensure you have a listing for '{security_token}' and the right key 
             (I can't help you there, ask the person that originally labeled these assets)
+            3. Try loading the '{vott_file}' file again.
         
         and/or
             
-        - You need to update your Connections
+        - You get an unknown error: You need to update your Connections
             1. Click the Plug icon
             2. Update '{}' by pointing its connection to:
                '{}'
             3. Update '{}' by pointing its connection to:
                '{target_directory}'
-    '''.format(os.path.basename(vott_file), source_connection, new_source_directory,  
+               
+            Make sure to hit the Save button after editing.
+            
+            4. Try loading the '{vott_file}' file again. It should now work!
+    '''.format(source_connection, new_source_directory,  
                 target_connection, security_token = security_token_name, 
-                target_directory = target_directory)
+                target_directory = target_directory, vott_file = os.path.basename(vott_file))
     print(final_instructions)
 
 
