@@ -181,7 +181,7 @@ Done! Only a couple remaining steps:
         
         and/or
             
-        - You get an unknown error: You need to update your Connections
+        - You get an unknown error or no images show up: You need to update your Connections
             1. Click the Plug icon
             2. Update '{}' by pointing its connection to:
                '{}'
