@@ -7,6 +7,14 @@ import glob
 import sys
 import os
 import re
+"""
+# TODO: the provider, found in the vott file encryts the connection information for local filestystem.
+        "providerOptions": {
+            "encrypted": "eyJjaXBoZXJ0ZXh0IjoiM2RkMDM5Y2Y4ZGJjYjk1MzQ3ZTczMGRlYTZmNzg2MjdhZjRhN2E0MWNiNGRjNWViNDgyZWI5NzRmNDE0YWNjNDM5MmU1MGU0NzNhMzQ1MjUyYWM4YTIxM2YzODljOTEzYjhhYTkyNDhlMjIzMGNiZjQyZGM2ZjA4ZmM5OWY5MTMwODg1MjE3ZjQ1MmI3YmMyMmZhOTQ3ZTczODlmOTljN2E5MDkxOTA4MGM0MzcyMjhjYzViZGMzYWYwMTA4YjQ2ODJhZTg0ZmFmZjUyNTU0NzVlZDRkYjY3MGQ0ZGVkYjQ4YzdkOTJiN2ViNmJiZTI0OTIwMjg3ZTNiZmIzMzM2YzBmNjhlYzgzMjhhZWI5ZTBkZDExZTJhN2Y5MjRjYjEyNjczYmM1Nzk5NGQzNzIwZTdiMGZlY2M3MGJjOTlkMTgiLCJpdiI6IjM0OTU5NDBmOTJmMjE4MDJjMGM2Y2M0ZDM3MzlmYTYwNTllMTU2NGU2N2E3ZWI2NCJ9"
+        },
+
+Unencrypt this, transform it (replace with the new path), then reencrypt. This way your source and destination directories will be automatically fixed.
+"""
 
 def get_single_file_with_suffix(directory, suffix):
     """
@@ -17,7 +25,7 @@ def get_single_file_with_suffix(directory, suffix):
     
     Args: 
     directory: the path (relative or full) to the directory with the file in it.
-    suffix: the suffix of the file *including* the '.' (e.g. '.png' not 'png'). 
+    suffix: the suffix of the file *including* the '.' (e.g. '.jpg' not 'jpg'). 
     suffix: can also be a list of suffixes to try (e.g. ['.jpg', '.jpeg'])
     """
     candidate_files = []
@@ -61,6 +69,52 @@ def map_old_vott_path_and_id_to_new(vott_dict, directory_name):
         
     return old_to_new_ids
 
+def replace_old_contents(target_directory, old_to_new_ids, old_source_directory, 
+                         node_ready_new_source_directory):
+    """
+    Replace the contents of .vott and .json files in the target directory and its subdirectories
+    with the new asset ids and the new source directory
+    
+    Essentially, go line by line through all files and replace the source directory from the old
+    machine to the one that will be used with this machine.
+    
+    Args:
+        target_directory (`str`): path to the target directory
+        old_to_new_ids (:obj:`dict`): dictionary mapping from old asset id to new id
+        old_source_directory (`str`): path to the old source directory
+        node_ready_new_source_directory (`str`): path to new source directory, made ready for node
+        
+    Return:
+        None
+    """
+    # get the full path of all vott and json files in the target directory and subdirectories
+    files = [f for suffix in ('**/*.vott', '**/*.json') for f in glob.glob(os.path.join(target_directory, suffix), recursive=True) if os.path.isfile(f) == True]
+    
+    # open an inplace fileinput so that stdout of this script becomes the input to the provided files
+    for byteline in fileinput.input(files=files, inplace=True, mode='rb'):
+        try:
+            # has to be opened in byte mode (to prevent unicode decode errors) then converted to a string
+            line = byteline.decode()
+            
+            # replace every instance of the old id in every file with the proper new id
+            for id_pair in old_to_new_ids.items():
+                # the old asset id
+                old_id = id_pair[0]
+                # the new asset id
+                new_id = id_pair[1]
+                # replace the old id with the new one in this line
+                line = line.replace(old_id, new_id)
+                
+            # replace the old directory name with the new one in this line
+            line = line.replace(old_source_directory, node_ready_new_source_directory)
+            
+            # the fileinput stream is open (thanks to inplace=True) so everything that goes to stdout
+            # goes into the original file (idgi, just works)
+            sys.stdout.write(line)
+            
+        except UnicodeDecodeError as e:
+            pass
+
 @click.argument('new_source_directory', type=click.Path(exists=True, file_okay=False,\
             resolve_path=True, readable=True), required=True)
 @click.argument('target_directory', type=click.Path(exists=True, file_okay=False,\
@@ -68,12 +122,15 @@ def map_old_vott_path_and_id_to_new(vott_dict, directory_name):
 @click.command()
 def main(new_source_directory, target_directory):
     """
+    This script solves the problem of transferring assets labeled with VoTT from one machine to
+    another. 
+    
     Arguments:
     
-    target_directory -- the path to the directory that contains all the -asset.json files and the 
+        target_directory -- the path to the directory that contains all the -asset.json files and the 
     .vott file
     
-    new_source_directory -- the path to the directory that contains the images that were
+        new_source_directory -- the path to the directory that contains the images that were
     originally tagged (not yet tested with videos)
     
     Note that the new_source_directory must contain ALL of the assets that were originally present
@@ -85,9 +142,6 @@ def main(new_source_directory, target_directory):
     
     Purpose:
     
-    This script solves the problem of transferring assets labeled with VoTT from one machine to
-    another. 
-    
     The problem arises due to VoTT using the md5 hash of the absolute path of the source asset
     (image or video) as the asset_id. This id is used whenever the asset is looked up, so transferring
     assets and VoTT files from one machine to another breaks VoTT's ability to recognize the labels
@@ -98,9 +152,8 @@ def main(new_source_directory, target_directory):
     new_source_directory and updating the contents of the target_directory files to reference those
     asset ids.
     """
-    
-    # npm uses %20 in place of spaces
-    npm_ready_new_source_directory = re.sub(' ', '%20', new_source_directory)
+    # node uses %20 in place of spaces
+    node_ready_new_source_directory = re.sub(' ', '%20', new_source_directory)
     
     # get the vott file that references all the asset files
     vott_file = get_single_file_with_suffix(target_directory, '.vott')
@@ -117,7 +170,7 @@ def main(new_source_directory, target_directory):
     old_source_directory = os.path.split(path_value[len('file:'):])[0]
     
     # get a dictionary that maps the old asset ids to the new ones
-    old_to_new_ids = map_old_vott_path_and_id_to_new(vott_dict, npm_ready_new_source_directory)
+    old_to_new_ids = map_old_vott_path_and_id_to_new(vott_dict, node_ready_new_source_directory)
     
     print("Replacing old asset ids in file names with the new asset ids")
     for old_asset_path in glob.glob(os.path.join(target_directory, '*-asset.json')):
@@ -135,29 +188,8 @@ def main(new_source_directory, target_directory):
         os.rename(old_asset_path, os.path.join(target_directory, new_id+'-asset.json'))
     
     print("Replacing old paths and asset ids in the files themselves, this may take a while.")
-    
-    # get the full path of all files in the target directory, exclude directories
-    files = [f for f in glob.glob(os.path.join(target_directory, '*')) if os.path.isfile(f) == True]
-    
-    # open an inplace fileinput so that stdout of this script becomes the input to the provided files
-    for line in fileinput.input(files=files, inplace=True):
-        
-        # replace every instance of the old id in every file with the proper new id
-        for id_pair in old_to_new_ids.items():
-            # the old asset id
-            old_id = id_pair[0]
-            # the new asset id
-            new_id = id_pair[1]
-            # replace the old id with the new one in this line
-            line = line.replace(old_id, new_id)
-        
-        # replace the old directory name with the new one in this line
-        line = line.replace(old_source_directory, npm_ready_new_source_directory)
-        
-        # the fileinput stream is open (thanks to inplace=True) so everything that goes to stdout
-        # goes into the original file (idgi, just works™)
-        sys.stdout.write(line)
-        
+    replace_old_contents(target_directory, old_to_new_ids, old_source_directory, 
+                             node_ready_new_source_directory)
     
     # some variables used in the final instructions
     source_connection = vott_dict['sourceConnection']['name']
@@ -190,7 +222,7 @@ Done! Only a couple remaining steps:
                
             Make sure to hit the Save button after editing.
             
-            4. Try loading the '{vott_file}' file again. It should now work!
+            4. Try clicking the Bookmark button to reload the '{vott_file}' file again. It should now work!
     '''.format(source_connection, new_source_directory,  
                 target_connection, security_token = security_token_name, 
                 target_directory = target_directory, vott_file = os.path.basename(vott_file))
