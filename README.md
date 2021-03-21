@@ -1,6 +1,8 @@
 # update-vott-assets
 A script to enable transferring VoTT assets between machines when using Local File System
 
+For Windows compatibility, use https://github.com/lukasalexanderweber/update-vott-assets instead.
+
 
 # Inspiration
 [Feature: Ability to move project source location and maintain asset IDs](https://github.com/microsoft/VoTT/issues/762)
